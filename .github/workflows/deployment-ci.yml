@@ -109,35 +109,37 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ----------------------------------
-      # Install Trivy
-      # ----------------------------------
+      # # ----------------------------------
+      # # Install Trivy
+      # # ----------------------------------
 
-      - name: Install Trivy
-        run: |
-          sudo apt-get install wget apt-transport-https gnupg lsb-release -y
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install trivy -y
+      # - name: Install Trivy
+      #   run: |
+      #     sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+      #     wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+      #     echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+      #     sudo apt-get update
+      #     sudo apt-get install trivy -y
 
       # ----------------------------------
       # Container Scan Backend
       # ----------------------------------
 
       - name: Scan Backend Image
-        run: |
-          trivy image --severity HIGH,CRITICAL \
-          ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+          severity: HIGH,CRITICAL
 
       # ----------------------------------
       # Container Scan Frontend
       # ----------------------------------
 
       - name: Scan Frontend Image
-        run: |
-          trivy image --severity HIGH,CRITICAL \
-          ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
+          severity: HIGH,CRITICAL
 
       # ----------------------------------
       # Generate SBOM
