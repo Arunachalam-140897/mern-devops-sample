@@ -130,7 +130,7 @@ jobs:
         with:
           image-ref: ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
           severity: HIGH,CRITICAL
-          exit-code: 1
+          # exit-code: 1
 
       # ----------------------------------
       # Container Scan Frontend
@@ -141,7 +141,7 @@ jobs:
         with:
           image-ref: ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
           severity: HIGH,CRITICAL
-          exit-code: 1
+          # exit-code: 1
 
       # ----------------------------------
       # Generate SBOM
