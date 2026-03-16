@@ -1,5 +1,6 @@
 # ---------- Stage 1: Build ----------
 FROM node:22-alpine AS builder
+# updated base image for passing security scans
 
 WORKDIR /app
 
