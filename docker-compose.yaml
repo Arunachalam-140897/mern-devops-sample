@@ -1,31 +1,152 @@
-version: "3"
-
 services:
-  backend:
-    build: ./backend
-    container_name: mern-backend
-    ports:
-      - "5000:5000"
-    environment:
-      - MONGO_URI=mongodb://mongo:27017/devopsdb
-    depends_on:
-      - mongo
-
-  frontend:
-    build: ./frontend
-    container_name: mern-frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
 
   mongo:
-    image: mongo:6
-    container_name: mongo
-    ports:
-      - "27017:27017"
+    image: mongo:6.0
+    restart: unless-stopped
     volumes:
       - mongo_data:/data/db
+    networks:
+      - backend_network
+    environment:
+      MONGO_INITDB_DATABASE: devopsdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017/devopsdb
+    # ports:
+    #   - "5000:5000"
+    networks:
+      - backend_network
+      - frontend_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    # ports:
+    #   - "3000:80"
+    networks:
+      - frontend_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - frontend_network
+    restart: unless-stopped      
+
 
 volumes:
   mongo_data:
+    driver: local
+
+
+networks:
+  backend_network:
+    driver: bridge
+
+  frontend_network:
+    driver: bridge
+
+
+
+
+
+
+
+
+
+
+
+# version: "3"
+
+# services:
+#   backend:
+#     build: ./backend
+#     container_name: mern-backend
+#     ports:
+#       - "5000:5000"
+#     environment:
+#       - MONGO_URI=mongodb://mongo:27017/devopsdb
+#     depends_on:
+#       - mongo
+
+#   frontend:
+#     build: ./frontend
+#     container_name: mern-frontend
+#     ports:
+#       - "3000:80"
+#     depends_on:
+#       - backend
+
+#   mongo:
+#     image: mongo:6
+#     container_name: mongo
+#     ports:
+#       - "27017:27017"
+#     volumes:
+#       - mongo_data:/data/db
+
+# volumes:
+#   mongo_data:

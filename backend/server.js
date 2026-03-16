@@ -11,6 +11,8 @@ app.use(express.json());
 connectDB();
 app.use("/api/tasks", taskRoutes);
 
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
 const port = process.env.PORT || 5000;
 
 app.listen(port, () => console.log(`Backend running on port ${port}`));

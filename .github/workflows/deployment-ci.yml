@@ -1,0 +1,175 @@
+name: DevSecOps CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: docker.io
+  BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/devops-manifest-be
+  FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/devops-manifest-fe
+
+jobs:
+
+  security-and-build:
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+
+      # ----------------------------------
+      # Checkout repository
+      # ----------------------------------
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ----------------------------------
+      # Generate Image Tag
+      # ----------------------------------
+
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      # ----------------------------------
+      # Setup Docker Buildx
+      # ----------------------------------
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ----------------------------------
+      # DockerHub Login
+      # ----------------------------------
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # ----------------------------------
+      # Dependency Vulnerability Scan
+      # ----------------------------------
+
+      - name: Dependency Scan
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "mern-devsecops"
+          path: "."
+          format: "HTML"
+
+      # ----------------------------------
+      # SAST Scan using CodeQL
+      # ----------------------------------
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      # ----------------------------------
+      # Build Backend Docker Image
+      # ----------------------------------
+
+      - name: Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ----------------------------------
+      # Build Frontend Docker Image
+      # ----------------------------------
+
+      - name: Build Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ----------------------------------
+      # Install Trivy
+      # ----------------------------------
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy -y
+
+      # ----------------------------------
+      # Container Scan Backend
+      # ----------------------------------
+
+      - name: Scan Backend Image
+        run: |
+          trivy image --severity HIGH,CRITICAL \
+          ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+
+      # ----------------------------------
+      # Container Scan Frontend
+      # ----------------------------------
+
+      - name: Scan Frontend Image
+        run: |
+          trivy image --severity HIGH,CRITICAL \
+          ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
+
+      # ----------------------------------
+      # Generate SBOM
+      # ----------------------------------
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+
+      # ----------------------------------
+      # Push Backend Image
+      # ----------------------------------
+
+      - name: Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+            ${{ env.BACKEND_IMAGE }}:latest
+
+      # ----------------------------------
+      # Push Frontend Image
+      # ----------------------------------
+
+      - name: Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
+            ${{ env.FRONTEND_IMAGE }}:latest
